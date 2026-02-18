@@ -1,0 +1,70 @@
+<form [formGroup]="objectForm" (ngSubmit)="save()" autocomplete="off">
+  <div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">{{getTitle()}}</h4>
+    @if (object?.id) {
+      <span class="badge bg-primary text-primary-text-contrast ms-2">ID: {{object.id}}</span>
+    }
+    <button type="button" [disabled]="!closeEnabled" class="btn-close" aria-label="Close" (click)="cancel()">
+    </button>
+  </div>
+  <div class="modal-body">
+
+    <pngx-input-text 
+      i18n-title 
+      title="Name" 
+      formControlName="name" 
+      [error]="error?.name" 
+      autocomplete="off"
+      [required]="true">
+    </pngx-input-text>
+
+    <pngx-input-select 
+      i18n-title 
+      title="Provider Type" 
+      [items]="providerTypeOptions" 
+      formControlName="provider_type"
+      [required]="true">
+    </pngx-input-select>
+
+    <pngx-input-text 
+      i18n-title 
+      title="API URL" 
+      formControlName="api_url" 
+      [error]="error?.api_url"
+      [required]="true"
+      i18n-hint
+      hint="Base URL for the provider's API. Supports cloud (https://app.example.com) and local instances (http://localhost:3000)">
+    </pngx-input-text>
+
+    <pngx-input-textarea
+      i18n-title
+      title="Credentials (JSON)"
+      formControlName="credentials"
+      [error]="error?.credentials"
+      [rows]="8"
+      i18n-hint
+      hint='JSON object with provider-specific credentials. Example: {"api_key": "your-key"}'>
+    </pngx-input-textarea>
+
+    <pngx-input-check 
+      i18n-title 
+      title="Active" 
+      formControlName="is_active"
+      i18n-hint
+      hint="Enable/disable this integration without deleting configuration">
+    </pngx-input-check>
+
+    <div *pngxIfOwner="object">
+      <pngx-permissions-form 
+        [users]="users" 
+        accordion="true" 
+        formControlName="permissions_form">
+      </pngx-permissions-form>
+    </div>
+
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" (click)="cancel()" i18n [disabled]="networkActive">Cancel</button>
+    <button type="submit" class="btn btn-primary" i18n [disabled]="networkActive || !objectForm.valid">Save</button>
+  </div>
+</form>

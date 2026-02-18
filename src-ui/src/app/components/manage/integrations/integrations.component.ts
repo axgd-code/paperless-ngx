@@ -9,6 +9,8 @@ import { PermissionsService } from 'src/app/services/permissions.service'
 import { IntegrationService } from 'src/app/services/rest/integration.service'
 import { ToastService } from 'src/app/services/toast.service'
 import { ConfirmDialogComponent } from '../../common/confirm-dialog/confirm-dialog.component'
+import { EditDialogMode } from '../../common/edit-dialog/edit-dialog.component'
+import { IntegrationEditDialogComponent } from '../../common/edit-dialog/integration-edit-dialog/integration-edit-dialog.component'
 import { PageHeaderComponent } from '../../common/page-header/page-header.component'
 import { LoadingComponentWithPermissions } from '../../loading-component/loading.component'
 
@@ -67,6 +69,24 @@ export class IntegrationsComponent
       default:
         return $localize`Unknown`
     }
+  }
+
+  editIntegration(integration?: Integration) {
+    const modal = this.modalService.open(IntegrationEditDialogComponent, {
+      backdrop: 'static',
+      size: 'xl',
+    })
+    modal.componentInstance.dialogMode = integration
+      ? EditDialogMode.EDIT
+      : EditDialogMode.CREATE
+    if (integration) {
+      modal.componentInstance.object = Object.assign({}, integration)
+    }
+    modal.componentInstance.succeeded
+      .pipe(takeUntil(this.unsubscribeNotifier))
+      .subscribe(() => {
+        this.reload()
+      })
   }
 
   toggleActive(integration: Integration) {

@@ -4,7 +4,7 @@
   info="Manage third-party integrations for document signing, archiving, and custom workflows. Supports both cloud-hosted and self-hosted/local instances (e.g., http://localhost:3000). Toggle integrations on/off without deleting configuration."
   i18n-info
   >
-  <button type="button" class="btn btn-sm btn-outline-primary" *pngxIfPermissions="{ action: PermissionAction.Add, type: PermissionType.Integration }">
+  <button type="button" class="btn btn-sm btn-outline-primary" (click)="editIntegration()" *pngxIfPermissions="{ action: PermissionAction.Add, type: PermissionType.Integration }">
     <i-bs name="plus-circle" class="me-1"></i-bs><ng-container i18n>Add Integration</ng-container>
   </button>
 </pngx-page-header>
@@ -60,6 +60,7 @@
                 <i-bs name="three-dots-vertical"></i-bs>
               </button>
               <div ngbDropdownMenu aria-labelledby="actionsMenuMobile">
+                <button (click)="editIntegration(integration)" *pngxIfPermissions="{ action: PermissionAction.Change, type: PermissionType.Integration }" ngbDropdownItem i18n>Edit</button>
                 <button (click)="testConnection(integration)" ngbDropdownItem i18n>Test Connection</button>
                 <button *pngxIfPermissions="{ action: PermissionAction.Delete, type: PermissionType.Integration }" (click)="deleteIntegration(integration)" ngbDropdownItem i18n>Delete</button>
               </div>
@@ -67,6 +68,9 @@
           </div>
           <div class="btn-toolbar d-none d-sm-flex gap-2" role="toolbar">
             <div class="btn-group">
+              <button *pngxIfPermissions="{ action: PermissionAction.Change, type: PermissionType.Integration }" class="btn btn-sm btn-outline-secondary" type="button" (click)="editIntegration(integration)">
+                <i-bs width="1em" height="1em" name="pencil" class="me-1"></i-bs><ng-container i18n>Edit</ng-container>
+              </button>
               <button class="btn btn-sm btn-outline-info" type="button" (click)="testConnection(integration)">
                 <i-bs width="1em" height="1em" name="wifi" class="me-1"></i-bs><ng-container i18n>Test</ng-container>
               </button>
