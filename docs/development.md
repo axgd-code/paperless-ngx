@@ -376,6 +376,9 @@ have. However, some parts of the application have been designed to allow
 easy integration of additional features without any modification to the
 base code.
 
+For third-party integration providers and orchestration capabilities, see
+[Integration Provider Architecture](integrations_provider_architecture.md).
+
 ### Making custom parsers
 
 Paperless-ngx uses parsers to add documents. A parser is

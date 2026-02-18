@@ -6,18 +6,17 @@ API Documentation: https://openapi.documenso.com/reference
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 from django.utils import timezone
 
-from documents.interfaces import (
-    BaseIntegrationProvider,
-    IntegrationStatus,
-    ProviderRegistry,
-    PushResult,
-    StatusResult,
-)
+from documents.interfaces import BaseIntegrationProvider
+from documents.interfaces import IntegrationStatus
+from documents.interfaces import ProviderCapabilities
+from documents.interfaces import ProviderRegistry
+from documents.interfaces import PushResult
+from documents.interfaces import StatusResult
 from documents.models import Document
 
 logger = logging.getLogger("paperless.integrations.documenso")
@@ -44,13 +43,24 @@ class DocumensoProvider(BaseIntegrationProvider):
         self.api_key = credentials.get("api_key", "")
         self.timeout = 30
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         """Get HTTP headers for API requests."""
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+
+    def get_capabilities(self) -> ProviderCapabilities:
+        """Return Documenso capabilities."""
+        return ProviderCapabilities(
+            produces_remote_document=True,
+            supports_status_tracking=True,
+            supports_remote_url=True,
+            supports_delete=True,
+            supports_metadata_only_push=False,
+            optional_push_params=("recipients", "subject", "message", "redirect_url"),
+        )
 
     def validate_credentials(self) -> bool:
         """
@@ -78,7 +88,7 @@ class DocumensoProvider(BaseIntegrationProvider):
     def push_document(
         self,
         document_id: int,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> PushResult:
         """
         Send a document to Documenso for signing.
@@ -109,11 +119,11 @@ class DocumensoProvider(BaseIntegrationProvider):
             # Get document from Paperless
             document = Document.objects.get(pk=document_id)
             logger.info(
-                f"Sending document {document_id} ({document.title}) to Documenso"
+                f"Sending document {document_id} ({document.title}) to Documenso",
             )
 
             # Step 1: Upload document to Documenso
-            with open(document.source_path, "rb") as f:
+            with document.source_path.open("rb") as f:
                 files = {"file": (document.title, f, "application/pdf")}
                 upload_response = requests.post(
                     f"{self.api_url}/api/v1/documents",
@@ -178,7 +188,9 @@ class DocumensoProvider(BaseIntegrationProvider):
             raise Exception(error_msg)
 
         except requests.exceptions.HTTPError as e:
-            error_msg = f"Documenso API error: {e.response.status_code} - {e.response.text}"
+            error_msg = (
+                f"Documenso API error: {e.response.status_code} - {e.response.text}"
+            )
             logger.error(error_msg)
             raise Exception(error_msg)
 
@@ -237,7 +249,7 @@ class DocumensoProvider(BaseIntegrationProvider):
             )
 
             logger.info(
-                f"Documenso document {remote_id} status: {documenso_status} -> {status}"
+                f"Documenso document {remote_id} status: {documenso_status} -> {status}",
             )
 
             return StatusResult(

@@ -94,7 +94,7 @@ export class IntegrationsComponent
   }
 
   toggleActive(integration: Integration) {
-    integration.is_active = !integration.is_active
+    const previousValue = !integration.is_active
     this.integrationService.update(integration).subscribe({
       next: () => {
         this.toastService.showInfo(
@@ -109,7 +109,7 @@ export class IntegrationsComponent
           $localize`Error updating integration`,
           error
         )
-        integration.is_active = !integration.is_active
+        integration.is_active = previousValue
       },
     })
   }

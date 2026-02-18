@@ -6,18 +6,17 @@ API Documentation: https://developer.laposte.fr/catalog-apis/digiposte@3
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 from django.utils import timezone
 
-from documents.interfaces import (
-    BaseIntegrationProvider,
-    IntegrationStatus,
-    ProviderRegistry,
-    PushResult,
-    StatusResult,
-)
+from documents.interfaces import BaseIntegrationProvider
+from documents.interfaces import IntegrationStatus
+from documents.interfaces import ProviderCapabilities
+from documents.interfaces import ProviderRegistry
+from documents.interfaces import PushResult
+from documents.interfaces import StatusResult
 from documents.models import Document
 
 logger = logging.getLogger("paperless.integrations.digiposte")
@@ -47,13 +46,24 @@ class DigiPosteProvider(BaseIntegrationProvider):
         self.refresh_token = credentials.get("refresh_token", "")
         self.timeout = 30
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         """Get HTTP headers for API requests."""
         return {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+
+    def get_capabilities(self) -> ProviderCapabilities:
+        """Return DigiPoste capabilities."""
+        return ProviderCapabilities(
+            produces_remote_document=True,
+            supports_status_tracking=True,
+            supports_remote_url=True,
+            supports_delete=True,
+            supports_metadata_only_push=False,
+            optional_push_params=("folder", "category", "tags"),
+        )
 
     def _refresh_access_token(self) -> bool:
         """
@@ -137,7 +147,7 @@ class DigiPosteProvider(BaseIntegrationProvider):
     def push_document(
         self,
         document_id: int,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> PushResult:
         """
         Archive a document to DigiPoste.
@@ -166,11 +176,11 @@ class DigiPosteProvider(BaseIntegrationProvider):
             # Get document from Paperless
             document = Document.objects.get(pk=document_id)
             logger.info(
-                f"Archiving document {document_id} ({document.title}) to DigiPoste"
+                f"Archiving document {document_id} ({document.title}) to DigiPoste",
             )
 
             # Upload document to DigiPoste
-            with open(document.source_path, "rb") as f:
+            with document.source_path.open("rb") as f:
                 files = {
                     "file": (document.title, f, "application/pdf"),
                 }
@@ -233,7 +243,9 @@ class DigiPosteProvider(BaseIntegrationProvider):
             raise Exception(error_msg)
 
         except requests.exceptions.HTTPError as e:
-            error_msg = f"DigiPoste API error: {e.response.status_code} - {e.response.text}"
+            error_msg = (
+                f"DigiPoste API error: {e.response.status_code} - {e.response.text}"
+            )
             logger.error(error_msg)
             raise Exception(error_msg)
 
@@ -274,13 +286,12 @@ class DigiPosteProvider(BaseIntegrationProvider):
             )
 
             # Handle token expiration
-            if response.status_code == 401:
-                if self._refresh_access_token():
-                    response = requests.get(
-                        f"{self.api_url}/api/v3/documents/{remote_id}",
-                        headers=self._get_headers(),
-                        timeout=self.timeout,
-                    )
+            if response.status_code == 401 and self._refresh_access_token():
+                response = requests.get(
+                    f"{self.api_url}/api/v3/documents/{remote_id}",
+                    headers=self._get_headers(),
+                    timeout=self.timeout,
+                )
 
             response.raise_for_status()
             doc_data = response.json()
@@ -300,7 +311,7 @@ class DigiPosteProvider(BaseIntegrationProvider):
             )
 
             logger.info(
-                f"DigiPoste document {remote_id} status: {digiposte_status} -> {status}"
+                f"DigiPoste document {remote_id} status: {digiposte_status} -> {status}",
             )
 
             return StatusResult(
@@ -364,13 +375,12 @@ class DigiPosteProvider(BaseIntegrationProvider):
             )
 
             # Handle token expiration
-            if response.status_code == 401:
-                if self._refresh_access_token():
-                    response = requests.delete(
-                        f"{self.api_url}/api/v3/documents/{remote_id}",
-                        headers=self._get_headers(),
-                        timeout=self.timeout,
-                    )
+            if response.status_code == 401 and self._refresh_access_token():
+                response = requests.delete(
+                    f"{self.api_url}/api/v3/documents/{remote_id}",
+                    headers=self._get_headers(),
+                    timeout=self.timeout,
+                )
 
             response.raise_for_status()
 

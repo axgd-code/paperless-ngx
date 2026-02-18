@@ -3561,15 +3561,17 @@ def serve_logo(request, filename=None):
     )
 
 
-@extend_schema_view(**generate_object_with_permissions_schema(serializers.IntegrationSerializer))
+@extend_schema_view(
+    **generate_object_with_permissions_schema(serializers.IntegrationSerializer),
+)
 class IntegrationViewSet(ModelViewSet):
     """
     ViewSet for managing third-party integrations.
     Supports CRUD operations with permission-aware access.
     """
 
-    model = models.Integration
-    queryset = models.Integration.objects.select_related("owner").order_by(
+    model = Integration
+    queryset = Integration.objects.select_related("owner").order_by(
         Lower("name"),
     )
     serializer_class = serializers.IntegrationSerializer
@@ -3591,10 +3593,7 @@ class IntegrationViewSet(ModelViewSet):
         integration = self.get_object()
 
         if not integration.is_active:
-            return Response(
-                {"status": "inactive", "message": "Integration is not active"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise Http404
 
         # Placeholder for actual connection test logic
         # This would be implemented based on provider_type
@@ -3624,10 +3623,7 @@ class IntegrationViewSet(ModelViewSet):
             )
 
         if not integration.is_active:
-            return Response(
-                {"error": "Integration is not active"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise Http404
 
         # Queue the Celery task
         task = send_document_to_integration.delay(document_id, integration.id)
@@ -3659,10 +3655,7 @@ class IntegrationViewSet(ModelViewSet):
             )
 
         if not integration.is_active:
-            return Response(
-                {"error": "Integration is not active"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise Http404
 
         # Queue Celery tasks for each document
         task_ids = []
