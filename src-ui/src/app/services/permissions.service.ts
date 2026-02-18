@@ -29,6 +29,7 @@ export enum PermissionType {
   CustomField = '%s_customfield',
   Workflow = '%s_workflow',
   ProcessedMail = '%s_processedmail',
+  Integration = '%s_integration',
 }
 
 @Injectable({
