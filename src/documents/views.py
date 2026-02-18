@@ -3605,3 +3605,76 @@ class IntegrationViewSet(ModelViewSet):
                 "provider": integration.get_provider_type_display(),
             },
         )
+
+    @action(detail=True, methods=["post"])
+    def send_document(self, request, pk=None):
+        """
+        Send a single document to this integration provider.
+        Queues a Celery task for async processing.
+        """
+        from documents.tasks import send_document_to_integration
+
+        integration = self.get_object()
+        document_id = request.data.get("document_id")
+
+        if not document_id:
+            return Response(
+                {"error": "document_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not integration.is_active:
+            return Response(
+                {"error": "Integration is not active"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Queue the Celery task
+        task = send_document_to_integration.delay(document_id, integration.id)
+
+        return Response(
+            {
+                "status": "queued",
+                "task_id": task.id,
+                "message": f"Document {document_id} queued for sending to {integration.name}",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(detail=True, methods=["post"])
+    def send_documents_bulk(self, request, pk=None):
+        """
+        Send multiple documents to this integration provider.
+        Queues Celery tasks for async processing.
+        """
+        from documents.tasks import send_document_to_integration
+
+        integration = self.get_object()
+        document_ids = request.data.get("document_ids", [])
+
+        if not document_ids:
+            return Response(
+                {"error": "document_ids is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not integration.is_active:
+            return Response(
+                {"error": "Integration is not active"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Queue Celery tasks for each document
+        task_ids = []
+        for document_id in document_ids:
+            task = send_document_to_integration.delay(document_id, integration.id)
+            task_ids.append(task.id)
+
+        return Response(
+            {
+                "status": "queued",
+                "task_ids": task_ids,
+                "message": f"{len(document_ids)} document(s) queued for sending to {integration.name}",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
