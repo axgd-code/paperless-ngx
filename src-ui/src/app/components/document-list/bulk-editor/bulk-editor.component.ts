@@ -32,6 +32,7 @@ import {
   DocumentService,
   SelectionDataItem,
 } from 'src/app/services/rest/document.service'
+import { IntegrationService } from 'src/app/services/rest/integration.service'
 import { SavedViewService } from 'src/app/services/rest/saved-view.service'
 import { ShareLinkBundleService } from 'src/app/services/rest/share-link-bundle.service'
 import { StoragePathService } from 'src/app/services/rest/storage-path.service'
@@ -91,6 +92,7 @@ export class BulkEditorComponent
   private permissionService = inject(PermissionsService)
   private savedViewService = inject(SavedViewService)
   private readonly shareLinkBundleService = inject(ShareLinkBundleService)
+  private integrationService = inject(IntegrationService)
 
   tagSelectionModel = new FilterableDropdownSelectionModel(true)
   correspondentSelectionModel = new FilterableDropdownSelectionModel()
@@ -226,6 +228,16 @@ export class BulkEditorComponent
         .subscribe(
           (result) => (this.customFieldsSelectionModel.items = result.results)
         )
+    }
+
+    // Load active integrations for the Send menu
+    if (
+      this.permissionService.currentUserCan(
+        PermissionAction.View,
+        PermissionType.Integration
+      )
+    ) {
+      this.integrationService.reload()
     }
 
     this.downloadForm
@@ -910,6 +922,29 @@ export class BulkEditorComponent
 
   public get emailEnabled(): boolean {
     return this.settings.get(SETTINGS_KEYS.EMAIL_ENABLED)
+  }
+
+  public get activeIntegrations() {
+    return this.integrationService.activeIntegrations
+  }
+
+  public sendToIntegration(integrationId: number, integrationName: string) {
+    const selectedIds = Array.from(this.list.selected)
+    if (selectedIds.length === 0) return
+
+    this.integrationService.sendDocumentsBulk(selectedIds, integrationId).subscribe({
+      next: (result) => {
+        this.toastService.showInfo(
+          $localize`${selectedIds.length} document(s) sent to "${integrationName}". Processing in background...`
+        )
+      },
+      error: (error) => {
+        this.toastService.showError(
+          $localize`Error sending documents to "${integrationName}"`,
+          error
+        )
+      },
+    })
   }
 
   createShareLinkBundle() {

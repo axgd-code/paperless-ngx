@@ -1072,6 +1072,7 @@ if settings.AUDIT_LOG_ENABLED:
     auditlog.register(Note)
     auditlog.register(CustomField)
     auditlog.register(CustomFieldInstance)
+    # Integration is registered after the model definition at the end of file
 
 
 class WorkflowTrigger(models.Model):
@@ -1714,3 +1715,178 @@ class WorkflowRun(SoftDeleteModel):
 
     def __str__(self):
         return f"WorkflowRun of {self.workflow} at {self.run_at} on {self.document}"
+
+
+class Integration(ModelWithOwner):
+    """
+    Model for managing third-party integrations (Documenso, Digiposte, etc.)
+    with hot feature toggle capability.
+
+    Supports both cloud-hosted and self-hosted/local instances:
+    - Cloud: https://app.documenso.com
+    - Local: http://localhost:3000
+    - Private network: http://192.168.1.100:8080
+    - Docker: http://documenso:3000
+    """
+
+    class ProviderType(models.IntegerChoices):
+        DOCUMENSO = 1, _("Documenso (Signature)")
+        DIGIPOSTE = 2, _("Digiposte (Digital Vault)")
+        CUSTOM = 99, _("Custom Integration")
+
+    name = models.CharField(
+        _("name"),
+        max_length=256,
+        help_text=_("Display name for this integration"),
+    )
+
+    provider_type = models.PositiveSmallIntegerField(
+        _("provider type"),
+        choices=ProviderType.choices,
+        default=ProviderType.CUSTOM,
+    )
+
+    api_url = models.CharField(
+        _("API URL"),
+        max_length=512,
+        help_text=_(
+            "Base URL for the provider's API. "
+            "Supports cloud (https://app.example.com) and local instances "
+            "(http://localhost:3000, http://192.168.1.100, http://service:3000)"
+        ),
+    )
+
+    credentials = models.JSONField(
+        _("credentials"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Encrypted credentials storage (API keys, tokens, OAuth2 credentials)",
+        ),
+    )
+
+    is_active = models.BooleanField(
+        _("is active"),
+        default=False,
+        help_text=_("Enable/disable this integration without deletion"),
+    )
+
+    created = models.DateTimeField(
+        _("created"),
+        default=timezone.now,
+        editable=False,
+    )
+
+    modified = models.DateTimeField(
+        _("modified"),
+        auto_now=True,
+        editable=False,
+    )
+
+    class Meta:
+        verbose_name = _("integration")
+        verbose_name_plural = _("integrations")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "owner"],
+                name="documents_integration_unique_name_owner",
+            ),
+            models.UniqueConstraint(
+                name="documents_integration_name_unique",
+                fields=["name"],
+                condition=models.Q(owner__isnull=True),
+            ),
+        ]
+        ordering = ("name",)
+
+    def __str__(self):
+        return self.name
+
+
+class DocumentIntegrationMetadata(models.Model):
+    """
+    Tracks the status and metadata of documents pushed to external integrations.
+    
+    This model stores the mapping between Paperless documents and their
+    counterparts on external platforms (DocuSeal, Documenso, Digiposte, etc.).
+    """
+    
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="integration_metadata",
+        verbose_name=_("document"),
+    )
+    
+    integration = models.ForeignKey(
+        Integration,
+        on_delete=models.CASCADE,
+        related_name="document_metadata",
+        verbose_name=_("integration"),
+    )
+    
+    remote_id = models.CharField(
+        _("remote ID"),
+        max_length=512,
+        help_text=_("Identifier of the document on the external platform"),
+    )
+    
+    status = models.CharField(
+        _("status"),
+        max_length=50,
+        default="pending",
+        help_text=_("Current status of the document on the external platform"),
+    )
+    
+    remote_url = models.URLField(
+        _("remote URL"),
+        max_length=1024,
+        null=True,
+        blank=True,
+        help_text=_("Direct URL to access the document on the external platform"),
+    )
+    
+    metadata = models.JSONField(
+        _("metadata"),
+        null=True,
+        blank=True,
+        default=dict,
+        help_text=_("Provider-specific metadata (recipients, signatures, etc.)"),
+    )
+    
+    created = models.DateTimeField(
+        _("created"),
+        default=timezone.now,
+        editable=False,
+    )
+    
+    updated = models.DateTimeField(
+        _("updated"),
+        auto_now=True,
+    )
+    
+    last_synced = models.DateTimeField(
+        _("last synced"),
+        null=True,
+        blank=True,
+        help_text=_("Last time status was synced from the external platform"),
+    )
+    
+    class Meta:
+        verbose_name = _("document integration metadata")
+        verbose_name_plural = _("document integration metadata")
+        unique_together = [("document", "integration")]
+        indexes = [
+            models.Index(fields=["remote_id"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["document", "integration"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.document} -> {self.integration.name} ({self.status})"
+
+
+# Register models with auditlog
+if settings.AUDIT_LOG_ENABLED:
+    auditlog.register(Integration, exclude_fields=["modified", "credentials"])
+    auditlog.register(DocumentIntegrationMetadata, exclude_fields=["updated", "last_synced"])

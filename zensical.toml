@@ -22,6 +22,7 @@ nav = [
   "advanced_usage.md",
   "api.md",
   "development.md",
+  "integrations_provider_architecture.md",
   "faq.md",
   "troubleshooting.md",
   "changelog.md",

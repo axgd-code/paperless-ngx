@@ -60,6 +60,7 @@ from documents.models import CustomField
 from documents.models import CustomFieldInstance
 from documents.models import Document
 from documents.models import DocumentType
+from documents.models import Integration
 from documents.models import MatchingModel
 from documents.models import Note
 from documents.models import PaperlessTask
@@ -2988,3 +2989,112 @@ class StoragePathTestSerializer(SerializerWithPerms):
                 "documents.view_document",
                 Document,
             )
+
+
+class IntegrationSerializer(OwnedObjectSerializer):
+    """
+    Serializer for Integration model with credential encryption support
+    """
+
+    class Meta:
+        model = models.Integration
+        fields = (
+            "id",
+            "name",
+            "provider_type",
+            "api_url",
+            "credentials",
+            "is_active",
+            "created",
+            "modified",
+            "owner",
+            "permissions",
+            "user_can_change",
+            "set_permissions",
+        )
+        read_only_fields = ("created", "modified")
+
+    def validate_api_url(self, value):
+        """Validate API URL format"""
+        from documents.validators import url_validator
+
+        url_validator(value)
+        return value
+
+    def validate_credentials(self, value):
+        """
+        Validate credentials structure.
+        Expected format:
+        {
+            "api_key": "...",          # For API key authentication
+            "username": "...",          # For basic auth
+            "password": "...",          # For basic auth
+            "access_token": "...",      # For OAuth2
+            "refresh_token": "...",     # For OAuth2
+            "client_id": "...",         # For OAuth2
+            "client_secret": "...",     # For OAuth2
+            "expires_at": "..."         # For OAuth2 token expiration
+        }
+        """
+        if value is not None and not isinstance(value, dict):
+            raise serializers.ValidationError(
+                "Credentials must be a valid JSON object",
+            )
+        return value
+
+
+class DocumentIntegrationMetadataSerializer(serializers.ModelSerializer):
+    """
+    Serializer for DocumentIntegrationMetadata model.
+    
+    Tracks the status and metadata of documents on external platforms.
+    """
+    
+    document_title = serializers.CharField(source="document.title", read_only=True)
+    integration_name = serializers.CharField(source="integration.name", read_only=True)
+    provider_type = serializers.IntegerField(source="integration.provider_type", read_only=True)
+    
+    class Meta:
+        model = models.DocumentIntegrationMetadata
+        fields = (
+            "id",
+            "document",
+            "document_title",
+            "integration",
+            "integration_name",
+            "provider_type",
+            "remote_id",
+            "status",
+            "remote_url",
+            "metadata",
+            "created",
+            "updated",
+            "last_synced",
+        )
+        read_only_fields = ("created", "updated", "last_synced")
+    
+    def validate(self, attrs):
+        """Ensure unique constraint on document+integration"""
+        document = attrs.get("document")
+        integration = attrs.get("integration")
+        
+        # Check if this is an update (instance exists) or create
+        instance = getattr(self, "instance", None)
+        
+        if document and integration:
+            # Check for existing metadata
+            existing = models.DocumentIntegrationMetadata.objects.filter(
+                document=document,
+                integration=integration
+            )
+            
+            # If updating, exclude current instance
+            if instance:
+                existing = existing.exclude(pk=instance.pk)
+            
+            if existing.exists():
+                raise serializers.ValidationError(
+                    "Document already has metadata for this integration"
+                )
+        
+        return attrs

@@ -1,0 +1,87 @@
+<pngx-page-header
+  [title]="pageTitle"
+  [info]="pageInfo"
+  >
+  <button type="button" class="btn btn-sm btn-outline-primary" (click)="editIntegration()" *pngxIfPermissions="{ action: PermissionAction.Add, type: PermissionType.Integration }">
+    <i-bs name="plus-circle" class="me-1"></i-bs><ng-container i18n>Add Integration</ng-container>
+  </button>
+</pngx-page-header>
+
+<ul class="list-group">
+
+  <li class="list-group-item">
+    <div class="row">
+      <div class="col" i18n>Name</div>
+      <div class="col d-none d-sm-flex" i18n>Provider</div>
+      <div class="col" i18n>Status</div>
+      <div class="col d-none d-sm-flex" i18n>API URL</div>
+      <div class="col" i18n>Actions</div>
+    </div>
+  </li>
+
+  @if (loading && integrations.length === 0) {
+    <li class="list-group-item">
+      <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+      <ng-container i18n>Loading...</ng-container>
+    </li>
+  }
+
+  @for (integration of integrations; track integration.id) {
+    <li class="list-group-item">
+      <div class="row fade" [class.show]="show">
+        <div class="col d-flex align-items-center">
+          <strong>{{integration.name}}</strong>
+        </div>
+        <div class="col d-flex align-items-center d-none d-sm-flex">
+          <span class="badge bg-secondary">{{getProviderTypeName(integration.provider_type)}}</span>
+        </div>
+        <div class="col d-flex align-items-center">
+          <div class="form-check form-switch mb-0">
+            <input type="checkbox" class="form-check-input cursor-pointer" [id]="integration.id+'_active'" [(ngModel)]="integration.is_active" (change)="toggleActive(integration)" *pngxIfPermissions="{ action: PermissionAction.Change, type: PermissionType.Integration }">
+            <label class="form-check-label cursor-pointer" [for]="integration.id+'_active'">
+              @if(integration.is_active) {
+                <span class="badge bg-success" i18n>Active</span>
+              } @else {
+                <span class="badge bg-secondary" i18n>Inactive</span>
+              }
+            </label>
+          </div>
+        </div>
+        <div class="col d-flex align-items-center d-none d-sm-flex">
+          <small class="text-muted text-truncate" [title]="integration.api_url">{{integration.api_url}}</small>
+        </div>
+        <div class="col">
+
+          <div class="btn-group d-block d-sm-none">
+            <div ngbDropdown container="body" class="d-inline-block">
+              <button type="button" class="btn btn-link" id="actionsMenuMobile" (click)="$event.stopPropagation()" ngbDropdownToggle>
+                <i-bs name="three-dots-vertical"></i-bs>
+              </button>
+              <div ngbDropdownMenu aria-labelledby="actionsMenuMobile">
+                <button (click)="editIntegration(integration)" *pngxIfPermissions="{ action: PermissionAction.Change, type: PermissionType.Integration }" ngbDropdownItem i18n>Edit</button>
+                <button (click)="testConnection(integration)" ngbDropdownItem i18n>Test Connection</button>
+                <button *pngxIfPermissions="{ action: PermissionAction.Delete, type: PermissionType.Integration }" (click)="deleteIntegration(integration)" ngbDropdownItem i18n>Delete</button>
+              </div>
+            </div>
+          </div>
+          <div class="btn-toolbar d-none d-sm-flex gap-2" role="toolbar">
+            <div class="btn-group">
+              <button *pngxIfPermissions="{ action: PermissionAction.Change, type: PermissionType.Integration }" class="btn btn-sm btn-outline-secondary" type="button" (click)="editIntegration(integration)">
+                <i-bs width="1em" height="1em" name="pencil" class="me-1"></i-bs><ng-container i18n>Edit</ng-container>
+              </button>
+              <button class="btn btn-sm btn-outline-info" type="button" (click)="testConnection(integration)">
+                <i-bs width="1em" height="1em" name="wifi" class="me-1"></i-bs><ng-container i18n>Test</ng-container>
+              </button>
+              <button *pngxIfPermissions="{ action: PermissionAction.Delete, type: PermissionType.Integration }" class="btn btn-sm btn-outline-danger" type="button" (click)="deleteIntegration(integration)">
+                <i-bs width="1em" height="1em" name="trash" class="me-1"></i-bs><ng-container i18n>Delete</ng-container>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </li>
+  }
+  @if (!loading && integrations.length === 0) {
+    <li class="list-group-item" [class.show]="show" i18n>No integrations configured. Add an integration to start sending documents to external services.</li>
+  }
+</ul>

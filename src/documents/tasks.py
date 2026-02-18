@@ -748,3 +748,270 @@ def cleanup_expired_share_link_bundles() -> None:
             )
     if count:
         logger.info("Deleted %s expired share link bundle(s)", count)
+
+
+@shared_task
+def send_document_to_integration(
+    document_id: int,
+    integration_id: int,
+    params: dict | None = None,
+) -> dict:
+    """
+    Celery task to send a document to a third-party integration provider using the Provider Pattern.
+
+    Args:
+        document_id: ID of the document to send
+        integration_id: ID of the integration to use
+        params: Optional provider-specific parameters (e.g., recipients for signature)
+
+    Returns:
+        dict: Result containing status, remote_id, and any relevant information
+    """
+    from documents.interfaces import ProviderRegistry
+    from documents.models import DocumentIntegrationMetadata
+    from documents.models import Integration
+
+    logger = logging.getLogger("paperless.integrations")
+
+    # Create a PaperlessTask for tracking
+    task = PaperlessTask.objects.create(
+        type=PaperlessTask.TaskType.SCHEDULED_TASK,
+        task_id=uuid.uuid4(),
+        task_name=PaperlessTask.TaskName.SCHEDULED_TASK,
+        status=states.STARTED,
+        date_created=timezone.now(),
+        related_document_id=document_id,
+    )
+
+    try:
+        # Get document and integration
+        document = Document.objects.get(id=document_id)
+        integration = Integration.objects.get(id=integration_id)
+
+        if not integration.is_active:
+            raise ValueError(f"Integration '{integration.name}' is not active")
+
+        logger.info(
+            "Sending document %s ('%s') to integration %s (%s)",
+            document_id,
+            document.title,
+            integration.name,
+            integration.get_provider_type_display(),
+        )
+
+        # Get provider type mapping
+        provider_type_map = {
+            Integration.ProviderType.DOCUMENSO: "documenso",
+            Integration.ProviderType.DIGIPOSTE: "digiposte",
+            Integration.ProviderType.CUSTOM: "docuseal",
+        }
+
+        provider_type_name = provider_type_map.get(
+            integration.provider_type,
+            "docuseal",
+        )
+
+        # Create provider instance using Registry
+        provider = ProviderRegistry.create_provider(provider_type_name, integration)
+
+        if not provider:
+            raise ValueError(
+                f"No provider found for type: {provider_type_name}. "
+                f"Available providers: {ProviderRegistry.list_providers()}",
+            )
+
+        provider_capabilities = provider.get_capabilities()
+
+        # Push document to provider
+        result = provider.push_document(document_id, params or {})
+
+        remote_id = result.remote_id
+        if (
+            result.success
+            and not remote_id
+            and provider_capabilities.supports_metadata_only_push
+        ):
+            remote_id = f"local:{integration.id}:{document_id}:{uuid.uuid4()}"
+
+        if result.success and remote_id:
+            # Create or update metadata
+            DocumentIntegrationMetadata.objects.update_or_create(
+                document=document,
+                integration=integration,
+                defaults={
+                    "remote_id": remote_id,
+                    "status": result.status.value,
+                    "remote_url": result.remote_url,
+                    "metadata": result.metadata or {},
+                    "last_synced": timezone.now(),
+                },
+            )
+
+            logger.info(
+                "Successfully sent document %s to integration %s. Remote ID: %s",
+                document_id,
+                integration.name,
+                remote_id,
+            )
+
+            # Update task status
+            task.status = states.SUCCESS
+            task.result = str(
+                {
+                    "status": "success",
+                    "document_id": document_id,
+                    "integration_id": integration_id,
+                    "remote_id": remote_id,
+                    "remote_url": result.remote_url,
+                    "provider": integration.get_provider_type_display(),
+                    "timestamp": timezone.now().isoformat(),
+                },
+            )
+            task.date_done = timezone.now()
+            task.save(update_fields=["status", "result", "date_done"])
+
+            return {
+                "success": True,
+                "document_id": document_id,
+                "integration_id": integration_id,
+                "remote_id": remote_id,
+                "remote_url": result.remote_url,
+                "status": result.status.value,
+                "message": result.message,
+            }
+        else:
+            # Handle failure
+            error_msg = result.message or "Failed to push document to provider"
+            logger.error("Failed to send document %s: %s", document_id, error_msg)
+
+            task.status = states.FAILURE
+            task.result = error_msg
+            task.date_done = timezone.now()
+            task.save(update_fields=["status", "result", "date_done"])
+
+            raise Exception(error_msg)
+
+    except Document.DoesNotExist:
+        error_msg = f"Document {document_id} not found"
+        logger.error(error_msg)
+        task.status = states.FAILURE
+        task.result = error_msg
+        task.date_done = timezone.now()
+        task.save(update_fields=["status", "result", "date_done"])
+        raise
+
+    except Integration.DoesNotExist:
+        error_msg = f"Integration {integration_id} not found"
+        logger.error(error_msg)
+        task.status = states.FAILURE
+        task.result = error_msg
+        task.date_done = timezone.now()
+        task.save(update_fields=["status", "result", "date_done"])
+        raise
+
+    except Exception as exc:
+        error_msg = f"Failed to send document to integration: {exc}"
+        logger.exception(error_msg)
+        task.status = states.FAILURE
+        task.result = error_msg
+        task.date_done = timezone.now()
+        task.save(update_fields=["status", "result", "date_done"])
+        raise
+
+
+@shared_task
+def sync_integration_status(metadata_id: int) -> dict:
+    """
+    Celery task to sync the status of a document from an external integration.
+
+    Args:
+        metadata_id: ID of the DocumentIntegrationMetadata to sync
+
+    Returns:
+        dict: Result containing updated status
+    """
+    from documents.interfaces import ProviderRegistry
+    from documents.models import DocumentIntegrationMetadata
+    from documents.models import Integration
+
+    logger = logging.getLogger("paperless.integrations")
+
+    try:
+        metadata = DocumentIntegrationMetadata.objects.select_related(
+            "document",
+            "integration",
+        ).get(id=metadata_id)
+
+        integration = metadata.integration
+
+        if not integration.is_active:
+            error_msg = f"Integration '{integration.name}' is not active"
+            logger.warning(error_msg)
+            return {"success": False, "message": error_msg}
+
+        # Get provider type mapping
+        provider_type_map = {
+            Integration.ProviderType.DOCUMENSO: "documenso",
+            Integration.ProviderType.DIGIPOSTE: "digiposte",
+            Integration.ProviderType.CUSTOM: "docuseal",
+        }
+
+        provider_type_name = provider_type_map.get(
+            integration.provider_type,
+            "docuseal",
+        )
+        provider = ProviderRegistry.create_provider(provider_type_name, integration)
+
+        if not provider:
+            error_msg = f"No provider found for type: {provider_type_name}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+        provider_capabilities = provider.get_capabilities()
+        if not provider_capabilities.supports_status_tracking:
+            metadata.last_synced = timezone.now()
+            metadata.save(update_fields=["last_synced"])
+            message = f"Status synchronization not supported for provider '{provider_type_name}'"
+            logger.info(message)
+            return {
+                "success": True,
+                "metadata_id": metadata_id,
+                "status": metadata.status,
+                "updated_at": metadata.last_synced.isoformat(),
+                "message": message,
+            }
+
+        # Get status from provider
+        status_result = provider.get_status(metadata.remote_id)
+
+        # Update metadata
+        metadata.status = status_result.status.value
+        metadata.last_synced = timezone.now()
+        if status_result.metadata:
+            metadata.metadata = status_result.metadata
+        metadata.save(update_fields=["status", "last_synced", "metadata"])
+
+        logger.info(
+            "Synced status for document %s on integration %s: %s",
+            metadata.document_id,
+            integration.name,
+            status_result.status.value,
+        )
+
+        return {
+            "success": True,
+            "metadata_id": metadata_id,
+            "status": status_result.status.value,
+            "updated_at": status_result.updated_at.isoformat(),
+            "message": status_result.message,
+        }
+
+    except DocumentIntegrationMetadata.DoesNotExist:
+        error_msg = f"Metadata {metadata_id} not found"
+        logger.error(error_msg)
+        raise
+
+    except Exception as exc:
+        error_msg = f"Error syncing status for metadata {metadata_id}: {exc!s}"
+        logger.exception(error_msg)
+        raise

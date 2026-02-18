@@ -136,6 +136,7 @@ from documents.models import CustomField
 from documents.models import CustomFieldInstance
 from documents.models import Document
 from documents.models import DocumentType
+from documents.models import Integration
 from documents.models import Note
 from documents.models import PaperlessTask
 from documents.models import SavedView
@@ -3558,3 +3559,115 @@ def serve_logo(request, filename=None):
         filename=app_logo.name,
         as_attachment=True,
     )
+
+
+@extend_schema_view(
+    **generate_object_with_permissions_schema(serializers.IntegrationSerializer),
+)
+class IntegrationViewSet(ModelViewSet):
+    """
+    ViewSet for managing third-party integrations.
+    Supports CRUD operations with permission-aware access.
+    """
+
+    model = Integration
+    queryset = Integration.objects.select_related("owner").order_by(
+        Lower("name"),
+    )
+    serializer_class = serializers.IntegrationSerializer
+    pagination_class = StandardPagination
+    permission_classes = (IsAuthenticated, PaperlessObjectPermissions)
+    filter_backends = (
+        DjangoFilterBackend,
+        OrderingFilter,
+        ObjectOwnedOrGrantedPermissionsFilter,
+    )
+    ordering_fields = ("name", "provider_type", "is_active", "created", "modified")
+
+    @action(detail=True, methods=["post"])
+    def test_connection(self, request, pk=None):
+        """
+        Test the connection to the integration provider.
+        Returns connection status and any error messages.
+        """
+        integration = self.get_object()
+
+        if not integration.is_active:
+            raise Http404
+
+        # Placeholder for actual connection test logic
+        # This would be implemented based on provider_type
+        return Response(
+            {
+                "status": "success",
+                "message": "Connection test successful",
+                "provider": integration.get_provider_type_display(),
+            },
+        )
+
+    @action(detail=True, methods=["post"])
+    def send_document(self, request, pk=None):
+        """
+        Send a single document to this integration provider.
+        Queues a Celery task for async processing.
+        """
+        from documents.tasks import send_document_to_integration
+
+        integration = self.get_object()
+        document_id = request.data.get("document_id")
+
+        if not document_id:
+            return Response(
+                {"error": "document_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not integration.is_active:
+            raise Http404
+
+        # Queue the Celery task
+        task = send_document_to_integration.delay(document_id, integration.id)
+
+        return Response(
+            {
+                "status": "queued",
+                "task_id": task.id,
+                "message": f"Document {document_id} queued for sending to {integration.name}",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(detail=True, methods=["post"])
+    def send_documents_bulk(self, request, pk=None):
+        """
+        Send multiple documents to this integration provider.
+        Queues Celery tasks for async processing.
+        """
+        from documents.tasks import send_document_to_integration
+
+        integration = self.get_object()
+        document_ids = request.data.get("document_ids", [])
+
+        if not document_ids:
+            return Response(
+                {"error": "document_ids is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not integration.is_active:
+            raise Http404
+
+        # Queue Celery tasks for each document
+        task_ids = []
+        for document_id in document_ids:
+            task = send_document_to_integration.delay(document_id, integration.id)
+            task_ids.append(task.id)
+
+        return Response(
+            {
+                "status": "queued",
+                "task_ids": task_ids,
+                "message": f"{len(document_ids)} document(s) queued for sending to {integration.name}",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )

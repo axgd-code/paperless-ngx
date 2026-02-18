@@ -249,6 +249,9 @@ export class AppFrameComponent
     return this.settingsService.get(SETTINGS_KEYS.AI_ENABLED)
   }
 
+  // Popover labels for navigation menu
+  readonly popoverIntegrations = $localize`Integrations`
+
   closeMenu() {
     this.isMenuCollapsed = true
   }
