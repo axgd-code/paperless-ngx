@@ -3041,3 +3041,60 @@ class IntegrationSerializer(OwnedObjectSerializer):
                 "Credentials must be a valid JSON object",
             )
         return value
+
+
+class DocumentIntegrationMetadataSerializer(serializers.ModelSerializer):
+    """
+    Serializer for DocumentIntegrationMetadata model.
+    
+    Tracks the status and metadata of documents on external platforms.
+    """
+    
+    document_title = serializers.CharField(source="document.title", read_only=True)
+    integration_name = serializers.CharField(source="integration.name", read_only=True)
+    provider_type = serializers.IntegerField(source="integration.provider_type", read_only=True)
+    
+    class Meta:
+        model = models.DocumentIntegrationMetadata
+        fields = (
+            "id",
+            "document",
+            "document_title",
+            "integration",
+            "integration_name",
+            "provider_type",
+            "remote_id",
+            "status",
+            "remote_url",
+            "metadata",
+            "created",
+            "updated",
+            "last_synced",
+        )
+        read_only_fields = ("created", "updated", "last_synced")
+    
+    def validate(self, attrs):
+        """Ensure unique constraint on document+integration"""
+        document = attrs.get("document")
+        integration = attrs.get("integration")
+        
+        # Check if this is an update (instance exists) or create
+        instance = getattr(self, "instance", None)
+        
+        if document and integration:
+            # Check for existing metadata
+            existing = models.DocumentIntegrationMetadata.objects.filter(
+                document=document,
+                integration=integration
+            )
+            
+            # If updating, exclude current instance
+            if instance:
+                existing = existing.exclude(pk=instance.pk)
+            
+            if existing.exists():
+                raise serializers.ValidationError(
+                    "Document already has metadata for this integration"
+                )
+        
+        return attrs

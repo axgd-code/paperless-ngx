@@ -7,6 +7,7 @@ from documents.models import Correspondent
 from documents.models import CustomField
 from documents.models import CustomFieldInstance
 from documents.models import Document
+from documents.models import DocumentIntegrationMetadata
 from documents.models import DocumentType
 from documents.models import Integration
 from documents.models import Note
@@ -232,6 +233,14 @@ class IntegrationAdmin(GuardedModelAdmin):
     search_fields = ("name", "api_url")
 
 
+class DocumentIntegrationMetadataAdmin(admin.ModelAdmin):
+    list_display = ("document", "integration", "status", "remote_id", "created", "last_synced")
+    list_filter = ("status", "integration", "created")
+    readonly_fields = ("created", "updated", "last_synced")
+    search_fields = ("document__title", "integration__name", "remote_id")
+    raw_id_fields = ("document", "integration")
+
+
 admin.site.register(Correspondent, CorrespondentAdmin)
 admin.site.register(Tag, TagAdmin)
 admin.site.register(DocumentType, DocumentTypeAdmin)
@@ -245,6 +254,7 @@ admin.site.register(ShareLinkBundle, ShareLinkBundleAdmin)
 admin.site.register(CustomField, CustomFieldsAdmin)
 admin.site.register(CustomFieldInstance, CustomFieldInstancesAdmin)
 admin.site.register(Integration, IntegrationAdmin)
+admin.site.register(DocumentIntegrationMetadata, DocumentIntegrationMetadataAdmin)
 
 if settings.AUDIT_LOG_ENABLED:
 
