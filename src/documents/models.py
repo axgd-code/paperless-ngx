@@ -1721,6 +1721,12 @@ class Integration(ModelWithOwner):
     """
     Model for managing third-party integrations (Documenso, Digiposte, etc.)
     with hot feature toggle capability.
+
+    Supports both cloud-hosted and self-hosted/local instances:
+    - Cloud: https://app.documenso.com
+    - Local: http://localhost:3000
+    - Private network: http://192.168.1.100:8080
+    - Docker: http://documenso:3000
     """
 
     class ProviderType(models.IntegerChoices):
@@ -1743,7 +1749,11 @@ class Integration(ModelWithOwner):
     api_url = models.CharField(
         _("API URL"),
         max_length=512,
-        help_text=_("Base URL for the provider's API"),
+        help_text=_(
+            "Base URL for the provider's API. "
+            "Supports cloud (https://app.example.com) and local instances "
+            "(http://localhost:3000, http://192.168.1.100, http://service:3000)"
+        ),
     )
 
     credentials = models.JSONField(

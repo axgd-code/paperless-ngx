@@ -4,6 +4,16 @@
 
 This implementation adds a comprehensive third-party integrations system to Paperless-ngx, allowing users to connect external services like Documenso (document signing) and Digiposte (digital vault) with hot feature toggle capability.
 
+**✅ Full Support for Local/Self-Hosted Instances**
+
+The integration module **fully supports both cloud-hosted and self-hosted/local instances** of integration providers. You can connect to:
+- Cloud services (e.g., `https://app.documenso.com`)
+- Local/localhost instances (e.g., `http://localhost:3000`)
+- Private network deployments (e.g., `http://192.168.1.100:8080`)
+- Custom domains (e.g., `https://documenso.mycompany.local`)
+
+All HTTP and HTTPS URLs are accepted, making it ideal for on-premise deployments and air-gapped environments.
+
 ## Architecture
 
 ### Backend (Django)
@@ -113,9 +123,40 @@ This implementation adds a comprehensive third-party integrations system to Pape
 ### Supported Provider Types
 
 #### Documenso (Signature Workflow)
+
+**Cloud-Hosted Example:**
 ```json
+API URL: https://app.documenso.com
+Credentials:
 {
   "api_key": "your-api-key-here"
+}
+```
+
+**Self-Hosted/Local Example:**
+```json
+API URL: http://localhost:3000
+Credentials:
+{
+  "api_key": "your-local-api-key"
+}
+```
+
+**Private Network Example:**
+```json
+API URL: http://192.168.1.100:3000
+Credentials:
+{
+  "api_key": "your-internal-api-key"
+}
+```
+
+**Custom Domain Example:**
+```json
+API URL: https://documenso.mycompany.local
+Credentials:
+{
+  "api_key": "your-enterprise-api-key"
 }
 ```
 
@@ -137,6 +178,76 @@ This implementation adds a comprehensive third-party integrations system to Pape
   "username": "username",
   "password": "password"
 }
+```
+
+### Local/Self-Hosted Deployment Considerations
+
+#### Supported URL Formats
+The integration module accepts any valid HTTP or HTTPS URL:
+- ✅ `http://localhost:3000` - Localhost with port
+- ✅ `http://127.0.0.1:8080` - Loopback IP
+- ✅ `http://192.168.1.100` - Private network IP
+- ✅ `http://10.0.0.50:3000` - Private network with port
+- ✅ `https://documenso.local` - Custom local domain
+- ✅ `https://documenso.internal.company.com` - Internal FQDN
+- ✅ `https://app.documenso.com` - Public cloud service
+
+#### SSL/TLS Considerations for Local Instances
+
+**Self-Signed Certificates:**
+If your local instance uses self-signed SSL certificates, you may need to configure Python's requests library to trust them:
+
+```python
+# In your Paperless-ngx configuration
+REQUESTS_CA_BUNDLE = '/path/to/ca-bundle.crt'
+# Or disable verification (NOT recommended for production)
+# REQUESTS_VERIFY_SSL = False
+```
+
+**HTTP for Local Development:**
+For local development environments, HTTP (non-encrypted) is acceptable:
+```
+API URL: http://localhost:3000
+```
+
+**Docker Network Communication:**
+If Paperless-ngx and your integration service are both running in Docker:
+```
+API URL: http://documenso:3000
+(where 'documenso' is the Docker service name)
+```
+
+#### Network Access Requirements
+
+Ensure Paperless-ngx can reach the integration service:
+1. **Same Host**: Use `localhost` or `127.0.0.1`
+2. **Same Network**: Use private IP or hostname
+3. **Docker**: Use service name or configure bridge network
+4. **Firewall**: Open necessary ports (e.g., 3000, 8080)
+
+#### Example: Self-Hosted Documenso Setup
+
+```yaml
+# docker-compose.yml example
+version: '3.8'
+services:
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    # ... other config ...
+    
+  documenso:
+    image: documenso/documenso:latest
+    ports:
+      - "3000:3000"
+    # ... other config ...
+```
+
+**Integration Configuration:**
+```
+Name: My Self-Hosted Documenso
+Provider Type: Documenso (Signature)
+API URL: http://documenso:3000
+Credentials: {"api_key": "your-local-api-key"}
 ```
 
 ### Sending Documents to Integrations
