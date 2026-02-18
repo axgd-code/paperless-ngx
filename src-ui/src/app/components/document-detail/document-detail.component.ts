@@ -78,6 +78,7 @@ import { SavedViewService } from 'src/app/services/rest/saved-view.service'
 import { StoragePathService } from 'src/app/services/rest/storage-path.service'
 import { TagService } from 'src/app/services/rest/tag.service'
 import { UserService } from 'src/app/services/rest/user.service'
+import { IntegrationService } from 'src/app/services/rest/integration.service'
 import { SettingsService } from 'src/app/services/settings.service'
 import { ToastService } from 'src/app/services/toast.service'
 import { getFilenameFromContentDisposition } from 'src/app/utils/http'
@@ -205,6 +206,7 @@ export class DocumentDetailComponent
   private componentRouterService = inject(ComponentRouterService)
   private deviceDetectorService = inject(DeviceDetectorService)
   private savedViewService = inject(SavedViewService)
+  private integrationService = inject(IntegrationService)
 
   @ViewChild('inputTitle')
   titleInput: TextComponent
@@ -565,6 +567,16 @@ export class DocumentDetailComponent
         .listAll()
         .pipe(first(), takeUntil(this.unsubscribeNotifier))
         .subscribe((result) => (this.storagePaths = result.results))
+    }
+    
+    // Load active integrations for the Send menu
+    if (
+      this.permissionsService.currentUserCan(
+        PermissionAction.View,
+        PermissionType.Integration
+      )
+    ) {
+      this.integrationService.reload()
     }
     if (
       this.permissionsService.currentUserCan(
@@ -1645,6 +1657,29 @@ export class DocumentDetailComponent
 
   get emailEnabled(): boolean {
     return this.settings.get(SETTINGS_KEYS.EMAIL_ENABLED)
+  }
+
+  get activeIntegrations() {
+    return this.integrationService.activeIntegrations
+  }
+
+  public sendToIntegration(integrationId: number, integrationName: string) {
+    this.networkActive = true
+    this.integrationService.sendDocument(this.document.id, integrationId).subscribe({
+      next: (result) => {
+        this.networkActive = false
+        this.toastService.showInfo(
+          $localize`Document sent to "${integrationName}". Processing in background...`
+        )
+      },
+      error: (error) => {
+        this.networkActive = false
+        this.toastService.showError(
+          $localize`Error sending document to "${integrationName}"`,
+          error
+        )
+      },
+    })
   }
 
   public openEmailDocument() {
