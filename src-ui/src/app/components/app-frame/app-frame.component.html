@@ -247,7 +247,7 @@
             <li class="nav-item app-link"
               *pngxIfPermissions="{ action: PermissionAction.View, type: PermissionType.Integration }">
               <a class="nav-link" routerLink="integrations" routerLinkActive="active" (click)="closeMenu()"
-                ngbPopover="Integrations" i18n-ngbPopover [disablePopover]="!slimSidebarEnabled" placement="end"
+                [ngbPopover]="popoverIntegrations" [disablePopover]="!slimSidebarEnabled" placement="end"
                 container="body" triggers="mouseenter:mouseleave" popoverClass="popover-slim">
                 <i-bs class="me-2" name="plugin"></i-bs><span><ng-container i18n>Integrations</ng-container></span>
               </a>
