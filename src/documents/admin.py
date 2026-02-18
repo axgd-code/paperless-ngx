@@ -8,6 +8,7 @@ from documents.models import CustomField
 from documents.models import CustomFieldInstance
 from documents.models import Document
 from documents.models import DocumentType
+from documents.models import Integration
 from documents.models import Note
 from documents.models import PaperlessTask
 from documents.models import SavedView
@@ -223,6 +224,14 @@ class CustomFieldInstancesAdmin(GuardedModelAdmin):
         )
 
 
+class IntegrationAdmin(GuardedModelAdmin):
+    list_display = ("name", "provider_type", "is_active", "created", "owner")
+    list_filter = ("provider_type", "is_active", "created")
+    list_editable = ("is_active",)
+    readonly_fields = ("created", "modified")
+    search_fields = ("name", "api_url")
+
+
 admin.site.register(Correspondent, CorrespondentAdmin)
 admin.site.register(Tag, TagAdmin)
 admin.site.register(DocumentType, DocumentTypeAdmin)
@@ -235,6 +244,7 @@ admin.site.register(ShareLink, ShareLinksAdmin)
 admin.site.register(ShareLinkBundle, ShareLinkBundleAdmin)
 admin.site.register(CustomField, CustomFieldsAdmin)
 admin.site.register(CustomFieldInstance, CustomFieldInstancesAdmin)
+admin.site.register(Integration, IntegrationAdmin)
 
 if settings.AUDIT_LOG_ENABLED:
 

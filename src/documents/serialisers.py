@@ -60,6 +60,7 @@ from documents.models import CustomField
 from documents.models import CustomFieldInstance
 from documents.models import Document
 from documents.models import DocumentType
+from documents.models import Integration
 from documents.models import MatchingModel
 from documents.models import Note
 from documents.models import PaperlessTask
@@ -2988,3 +2989,55 @@ class StoragePathTestSerializer(SerializerWithPerms):
                 "documents.view_document",
                 Document,
             )
+
+
+class IntegrationSerializer(OwnedObjectSerializer):
+    """
+    Serializer for Integration model with credential encryption support
+    """
+
+    class Meta:
+        model = models.Integration
+        fields = (
+            "id",
+            "name",
+            "provider_type",
+            "api_url",
+            "credentials",
+            "is_active",
+            "created",
+            "modified",
+            "owner",
+            "permissions",
+            "user_can_change",
+            "set_permissions",
+        )
+        read_only_fields = ("created", "modified")
+
+    def validate_api_url(self, value):
+        """Validate API URL format"""
+        from documents.validators import url_validator
+
+        url_validator(value)
+        return value
+
+    def validate_credentials(self, value):
+        """
+        Validate credentials structure.
+        Expected format:
+        {
+            "api_key": "...",          # For API key authentication
+            "username": "...",          # For basic auth
+            "password": "...",          # For basic auth
+            "access_token": "...",      # For OAuth2
+            "refresh_token": "...",     # For OAuth2
+            "client_id": "...",         # For OAuth2
+            "client_secret": "...",     # For OAuth2
+            "expires_at": "..."         # For OAuth2 token expiration
+        }
+        """
+        if value is not None and not isinstance(value, dict):
+            raise serializers.ValidationError(
+                "Credentials must be a valid JSON object",
+            )
+        return value

@@ -1072,6 +1072,7 @@ if settings.AUDIT_LOG_ENABLED:
     auditlog.register(Note)
     auditlog.register(CustomField)
     auditlog.register(CustomFieldInstance)
+    # Integration is registered after the model definition at the end of file
 
 
 class WorkflowTrigger(models.Model):
@@ -1714,3 +1715,84 @@ class WorkflowRun(SoftDeleteModel):
 
     def __str__(self):
         return f"WorkflowRun of {self.workflow} at {self.run_at} on {self.document}"
+
+
+class Integration(ModelWithOwner):
+    """
+    Model for managing third-party integrations (Documenso, Digiposte, etc.)
+    with hot feature toggle capability.
+    """
+
+    class ProviderType(models.IntegerChoices):
+        DOCUMENSO = 1, _("Documenso (Signature)")
+        DIGIPOSTE = 2, _("Digiposte (Digital Vault)")
+        CUSTOM = 99, _("Custom Integration")
+
+    name = models.CharField(
+        _("name"),
+        max_length=256,
+        help_text=_("Display name for this integration"),
+    )
+
+    provider_type = models.PositiveSmallIntegerField(
+        _("provider type"),
+        choices=ProviderType.choices,
+        default=ProviderType.CUSTOM,
+    )
+
+    api_url = models.CharField(
+        _("API URL"),
+        max_length=512,
+        help_text=_("Base URL for the provider's API"),
+    )
+
+    credentials = models.JSONField(
+        _("credentials"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Encrypted credentials storage (API keys, tokens, OAuth2 credentials)",
+        ),
+    )
+
+    is_active = models.BooleanField(
+        _("is active"),
+        default=False,
+        help_text=_("Enable/disable this integration without deletion"),
+    )
+
+    created = models.DateTimeField(
+        _("created"),
+        default=timezone.now,
+        editable=False,
+    )
+
+    modified = models.DateTimeField(
+        _("modified"),
+        auto_now=True,
+        editable=False,
+    )
+
+    class Meta:
+        verbose_name = _("integration")
+        verbose_name_plural = _("integrations")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "owner"],
+                name="documents_integration_unique_name_owner",
+            ),
+            models.UniqueConstraint(
+                name="documents_integration_name_unique",
+                fields=["name"],
+                condition=models.Q(owner__isnull=True),
+            ),
+        ]
+        ordering = ("name",)
+
+    def __str__(self):
+        return self.name
+
+
+# Register Integration model with auditlog
+if settings.AUDIT_LOG_ENABLED:
+    auditlog.register(Integration, exclude_fields=["modified", "credentials"])

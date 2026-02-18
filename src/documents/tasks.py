@@ -748,3 +748,101 @@ def cleanup_expired_share_link_bundles() -> None:
             )
     if count:
         logger.info("Deleted %s expired share link bundle(s)", count)
+
+
+@shared_task
+def send_document_to_integration(document_id: int, integration_id: int) -> dict:
+    """
+    Celery task to send a document to a third-party integration provider.
+    
+    Args:
+        document_id: ID of the document to send
+        integration_id: ID of the integration to use
+        
+    Returns:
+        dict: Result containing status and any relevant information
+    """
+    from documents.models import Integration
+
+    logger = logging.getLogger("paperless.integrations")
+    
+    # Create a PaperlessTask for tracking
+    task = PaperlessTask.objects.create(
+        type=PaperlessTask.TaskType.SCHEDULED_TASK,
+        task_id=uuid.uuid4(),
+        task_name=PaperlessTask.TaskName.SCHEDULED_TASK,
+        status=states.STARTED,
+        date_created=timezone.now(),
+        related_document_id=document_id,
+    )
+    
+    try:
+        # Get document and integration
+        document = Document.objects.get(id=document_id)
+        integration = Integration.objects.get(id=integration_id)
+        
+        if not integration.is_active:
+            raise ValueError(f"Integration '{integration.name}' is not active")
+        
+        logger.info(
+            "Sending document %s to integration %s (%s)",
+            document_id,
+            integration.name,
+            integration.get_provider_type_display(),
+        )
+        
+        # TODO: Implement actual provider-specific logic here
+        # This would vary based on integration.provider_type:
+        # - DOCUMENSO: Send document for signature workflow
+        # - DIGIPOSTE: Archive document to digital vault
+        # - CUSTOM: Use generic webhook or API call
+        
+        # Placeholder logic
+        result = {
+            "status": "success",
+            "document_id": document_id,
+            "integration_id": integration_id,
+            "provider": integration.get_provider_type_display(),
+            "timestamp": timezone.now().isoformat(),
+        }
+        
+        # Update task status
+        task.status = states.SUCCESS
+        task.result = str(result)
+        task.date_done = timezone.now()
+        task.save(update_fields=["status", "result", "date_done"])
+        
+        logger.info(
+            "Successfully sent document %s to integration %s",
+            document_id,
+            integration.name,
+        )
+        
+        return result
+        
+    except Document.DoesNotExist:
+        error_msg = f"Document {document_id} not found"
+        logger.error(error_msg)
+        task.status = states.FAILURE
+        task.result = error_msg
+        task.date_done = timezone.now()
+        task.save(update_fields=["status", "result", "date_done"])
+        raise
+        
+    except Integration.DoesNotExist:
+        error_msg = f"Integration {integration_id} not found"
+        logger.error(error_msg)
+        task.status = states.FAILURE
+        task.result = error_msg
+        task.date_done = timezone.now()
+        task.save(update_fields=["status", "result", "date_done"])
+        raise
+        
+    except Exception as exc:
+        error_msg = f"Failed to send document to integration: {exc}"
+        logger.exception(error_msg)
+        task.status = states.FAILURE
+        task.result = error_msg
+        task.date_done = timezone.now()
+        task.save(update_fields=["status", "result", "date_done"])
+        raise

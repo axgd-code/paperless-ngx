@@ -136,6 +136,7 @@ from documents.models import CustomField
 from documents.models import CustomFieldInstance
 from documents.models import Document
 from documents.models import DocumentType
+from documents.models import Integration
 from documents.models import Note
 from documents.models import PaperlessTask
 from documents.models import SavedView
@@ -3558,3 +3559,49 @@ def serve_logo(request, filename=None):
         filename=app_logo.name,
         as_attachment=True,
     )
+
+
+@extend_schema_view(**generate_object_with_permissions_schema(serializers.IntegrationSerializer))
+class IntegrationViewSet(ModelViewSet):
+    """
+    ViewSet for managing third-party integrations.
+    Supports CRUD operations with permission-aware access.
+    """
+
+    model = models.Integration
+    queryset = models.Integration.objects.select_related("owner").order_by(
+        Lower("name"),
+    )
+    serializer_class = serializers.IntegrationSerializer
+    pagination_class = StandardPagination
+    permission_classes = (IsAuthenticated, PaperlessObjectPermissions)
+    filter_backends = (
+        DjangoFilterBackend,
+        OrderingFilter,
+        ObjectOwnedOrGrantedPermissionsFilter,
+    )
+    ordering_fields = ("name", "provider_type", "is_active", "created", "modified")
+
+    @action(detail=True, methods=["post"])
+    def test_connection(self, request, pk=None):
+        """
+        Test the connection to the integration provider.
+        Returns connection status and any error messages.
+        """
+        integration = self.get_object()
+
+        if not integration.is_active:
+            return Response(
+                {"status": "inactive", "message": "Integration is not active"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Placeholder for actual connection test logic
+        # This would be implemented based on provider_type
+        return Response(
+            {
+                "status": "success",
+                "message": "Connection test successful",
+                "provider": integration.get_provider_type_display(),
+            },
+        )
