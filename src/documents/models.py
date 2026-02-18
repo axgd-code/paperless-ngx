@@ -1803,6 +1803,90 @@ class Integration(ModelWithOwner):
         return self.name
 
 
-# Register Integration model with auditlog
+class DocumentIntegrationMetadata(models.Model):
+    """
+    Tracks the status and metadata of documents pushed to external integrations.
+    
+    This model stores the mapping between Paperless documents and their
+    counterparts on external platforms (DocuSeal, Documenso, Digiposte, etc.).
+    """
+    
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="integration_metadata",
+        verbose_name=_("document"),
+    )
+    
+    integration = models.ForeignKey(
+        Integration,
+        on_delete=models.CASCADE,
+        related_name="document_metadata",
+        verbose_name=_("integration"),
+    )
+    
+    remote_id = models.CharField(
+        _("remote ID"),
+        max_length=512,
+        help_text=_("Identifier of the document on the external platform"),
+    )
+    
+    status = models.CharField(
+        _("status"),
+        max_length=50,
+        default="pending",
+        help_text=_("Current status of the document on the external platform"),
+    )
+    
+    remote_url = models.URLField(
+        _("remote URL"),
+        max_length=1024,
+        null=True,
+        blank=True,
+        help_text=_("Direct URL to access the document on the external platform"),
+    )
+    
+    metadata = models.JSONField(
+        _("metadata"),
+        null=True,
+        blank=True,
+        default=dict,
+        help_text=_("Provider-specific metadata (recipients, signatures, etc.)"),
+    )
+    
+    created = models.DateTimeField(
+        _("created"),
+        default=timezone.now,
+        editable=False,
+    )
+    
+    updated = models.DateTimeField(
+        _("updated"),
+        auto_now=True,
+    )
+    
+    last_synced = models.DateTimeField(
+        _("last synced"),
+        null=True,
+        blank=True,
+        help_text=_("Last time status was synced from the external platform"),
+    )
+    
+    class Meta:
+        verbose_name = _("document integration metadata")
+        verbose_name_plural = _("document integration metadata")
+        unique_together = [("document", "integration")]
+        indexes = [
+            models.Index(fields=["remote_id"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["document", "integration"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.document} -> {self.integration.name} ({self.status})"
+
+
+# Register models with auditlog
 if settings.AUDIT_LOG_ENABLED:
     auditlog.register(Integration, exclude_fields=["modified", "credentials"])
+    auditlog.register(DocumentIntegrationMetadata, exclude_fields=["updated", "last_synced"])
