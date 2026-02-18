@@ -754,11 +754,11 @@ def cleanup_expired_share_link_bundles() -> None:
 def send_document_to_integration(document_id: int, integration_id: int) -> dict:
     """
     Celery task to send a document to a third-party integration provider.
-    
+
     Args:
         document_id: ID of the document to send
         integration_id: ID of the integration to use
-        
+
     Returns:
         dict: Result containing status and any relevant information
     """
