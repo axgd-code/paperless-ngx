@@ -39,6 +39,10 @@ export class IntegrationsComponent
   public integrations: Integration[] = []
   public ProviderType = ProviderType
 
+  // Page header strings
+  readonly pageTitle = $localize`Integrations`
+  readonly pageInfo = $localize`Manage third-party integrations for document signing, archiving, and custom workflows. Supports both cloud-hosted and self-hosted/local instances (e.g., http://localhost:3000). Toggle integrations on/off without deleting configuration.`
+
   ngOnInit() {
     this.reload()
   }

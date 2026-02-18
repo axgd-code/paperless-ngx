@@ -51,6 +51,23 @@ export const PROVIDER_TYPE_OPTIONS = [
 export class IntegrationEditDialogComponent extends EditDialogComponent<Integration> {
   providerTypeOptions = PROVIDER_TYPE_OPTIONS
 
+  // Field titles
+  readonly titleName = $localize`Name`
+  readonly titleProviderType = $localize`Provider Type`
+  readonly titleApiUrl = $localize`API URL`
+  readonly titleCredentials = $localize`Credentials (JSON)`
+  readonly titleActive = $localize`Active`
+
+  // Field hints
+  readonly hintApiUrl = $localize`Base URL for the provider's API. Supports cloud (https://app.example.com) and local instances (http://localhost:3000)`
+  readonly hintCredentials = $localize`JSON object with provider-specific credentials. Example: {"api_key": "your-key"}`
+  readonly hintActive = $localize`Enable/disable this integration without deleting configuration`
+
+  // Button labels
+  readonly labelCancel = $localize`Cancel`
+  readonly labelSave = $localize`Save`
+  readonly labelClose = $localize`Close`
+
   constructor() {
     super()
     this.service = inject(IntegrationService)

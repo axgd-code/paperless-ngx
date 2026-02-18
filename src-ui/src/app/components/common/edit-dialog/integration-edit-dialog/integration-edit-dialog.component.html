@@ -4,14 +4,13 @@
     @if (object?.id) {
       <span class="badge bg-primary text-primary-text-contrast ms-2">ID: {{object.id}}</span>
     }
-    <button type="button" [disabled]="!closeEnabled" class="btn-close" aria-label="Close" (click)="cancel()">
+    <button type="button" [disabled]="!closeEnabled" class="btn-close" [attr.aria-label]="labelClose" (click)="cancel()">
     </button>
   </div>
   <div class="modal-body">
 
     <pngx-input-text 
-      i18n-title 
-      title="Name" 
+      [title]="titleName"
       formControlName="name" 
       [error]="error?.name" 
       autocomplete="off"
@@ -19,39 +18,32 @@
     </pngx-input-text>
 
     <pngx-input-select 
-      i18n-title 
-      title="Provider Type" 
+      [title]="titleProviderType"
       [items]="providerTypeOptions" 
       formControlName="provider_type"
       [required]="true">
     </pngx-input-select>
 
     <pngx-input-text 
-      i18n-title 
-      title="API URL" 
+      [title]="titleApiUrl"
       formControlName="api_url" 
       [error]="error?.api_url"
       [required]="true"
-      i18n-hint
-      hint="Base URL for the provider's API. Supports cloud (https://app.example.com) and local instances (http://localhost:3000)">
+      [hint]="hintApiUrl">
     </pngx-input-text>
 
     <pngx-input-textarea
-      i18n-title
-      title="Credentials (JSON)"
+      [title]="titleCredentials"
       formControlName="credentials"
       [error]="error?.credentials"
       [rows]="8"
-      i18n-hint
-      hint='JSON object with provider-specific credentials. Example: {"api_key": "your-key"}'>
+      [hint]="hintCredentials">
     </pngx-input-textarea>
 
     <pngx-input-check 
-      i18n-title 
-      title="Active" 
+      [title]="titleActive"
       formControlName="is_active"
-      i18n-hint
-      hint="Enable/disable this integration without deleting configuration">
+      [hint]="hintActive">
     </pngx-input-check>
 
     <div *pngxIfOwner="object">
@@ -64,7 +56,7 @@
 
   </div>
   <div class="modal-footer">
-    <button type="button" class="btn btn-outline-secondary" (click)="cancel()" i18n [disabled]="networkActive">Cancel</button>
-    <button type="submit" class="btn btn-primary" i18n [disabled]="networkActive || !objectForm.valid">Save</button>
+    <button type="button" class="btn btn-outline-secondary" (click)="cancel()" [disabled]="networkActive">{{labelCancel}}</button>
+    <button type="submit" class="btn btn-primary" [disabled]="networkActive || !objectForm.valid">{{labelSave}}</button>
   </div>
 </form>
